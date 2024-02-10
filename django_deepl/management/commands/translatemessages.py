@@ -21,9 +21,9 @@ class Command(BaseCommand):
     '''
 
     def add_arguments(self, parser):
-        parser.add_argument('--locale', '-l', nargs='?', default=[], dest='locale',
+        parser.add_argument('--locale', '-l', dest='locale', nargs='?', default=[],
                             action='append', help='Translate .po files, selected locales')
-        parser.add_argument('--en-dialect', '-ed', default='EN-US', dest='en_dialect',
+        parser.add_argument('--en-dialect', '-ed', dest='en_dialect', default='EN-US',
                             help='English default dialect (EN-US or EN-GB) for locales "EN"')
         parser.add_argument('--deepl_api_key', dest='DEEPL_API_KEY', action='store_const',
                             help='Use django settings or set deepl API key here')
@@ -35,7 +35,11 @@ class Command(BaseCommand):
         self.fuzzy = options['fuzzy']
         self.en_dialect = options['en_dialect']
 
-        self.translator = deepl.Translator(options['DEEPL_API_KEY'] or settings.DEEPL_API_KEY)
+        self.translator = deepl.Translator(
+            options['DEEPL_API_KEY'] or
+            os.getenv('DEEPL_API_KEY') or
+            settings.DEEPL_API_KEY
+        )
 
     def handle(self, *args, **options):
         assert getattr(settings, 'USE_I18N', False), 'I18N is disabled'
@@ -56,9 +60,32 @@ class Command(BaseCommand):
                     if file.endswith('.po'):
                         self.translate_po(root, file, lang)
 
-    def get_messages_for_translate(self, entries: set[polib.MOEntry]) -> list[str]:
+    def translate_po(self, root: str, name_file: str, lang: str) -> None:
+        """ Переводит указанный .po файл в указанный язык """
+        file = polib.pofile(os.path.join(root, name_file))
+
+        entries = self.get_untranslated_entries(file)
+        messages = self.get_messages_for_translate(entries)
+
+        if not messages:
+            return
+
+        translated_messages = self.translator.translate_text(
+            messages,
+            target_lang=self.en_dialect if lang.upper() == "EN" else lang
+        )
+
+        self.modify_po_entries(entries, translated_messages)
+        file.save()
+
+    def get_untranslated_entries(self, file: polib.POFile) -> set[polib.POEntry]:
+        """ Entries from the get file, are untranslated and not obsolete """
+        return set(file.untranslated_entries()) - set(file.obsolete_entries())
+
+    def get_messages_for_translate(self, entries: set[polib.POEntry]) -> list[str]:
         """ Collects the contents of records for translation """
         messages = list()
+
         for entrie in entries:
             # Get not translated singular and plural msg entries
             if entrie.msgid and not entrie.msgstr:
@@ -69,7 +96,7 @@ class Command(BaseCommand):
 
     def modify_po_entries(
             self,
-            entries: set[polib.MOEntry],
+            entries: set[polib.POEntry],
             translated_messages: list[TextResult]
     ) -> None:
         """
@@ -89,22 +116,3 @@ class Command(BaseCommand):
             # If user set fuzzy, in entries sets the flag
             if self.fuzzy and not entrie.fuzzy:
                 entrie.flags.append('fuzzy')
-
-    def translate_po(self, root: str, name_file: str, lang: str) -> None:
-        """ Переводит указанный .po файл в указанный язык """
-        file = polib.pofile(os.path.join(root, name_file))
-
-        # Entries from the get file, are untranslated and not obsolete
-        entries = set(file.untranslated_entries()) - set(file.obsolete_entries())
-        messages = self.get_messages_for_translate(entries)
-
-        if not messages:
-            return
-
-        translated_messages = self.translator.translate_text(
-            messages,
-            target_lang=self.en_dialect if lang.upper() == "EN" else lang
-        )
-
-        self.modify_po_entries(entries, translated_messages)
-        file.save()
