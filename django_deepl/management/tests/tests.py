@@ -7,6 +7,7 @@ from deepl.api_data import TextResult
 
 from django_deepl.management.commands.translatemessages import Command
 
+
 class TestTranslateMessages(TestCase):
     def setUp(self):
         cmd = Command()
