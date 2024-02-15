@@ -47,20 +47,16 @@ def construct():
     targeting fields specified by the user
     """
 
-    for model, deepl_fields in filter_attrs_models('DEEPL_FIELDS').items():
+    deepl_models = filter_attrs_models('DEEPL_FIELDS')
+    for model, deepl_fields in deepl_models.items():
         # In future supported set attrs from dict
         if type(deepl_fields) is list:
             deepl_fields = dict.fromkeys(deepl_fields)
         fields_names = deepl_fields.keys()
 
-        # To translate selected fields
-        for field_name in fields_names:
-            create_field(field_name, model, deepl_fields)
+        # To translate fields
+        for field in fields_names or model._meta.fields:
+            if (field.__class__ in SUPPORTED_FIELDS and (field := field.name)) \
+                or type(field) is str:
 
-        if fields_names:
-            return
-
-        # To translate all fields
-        for field in model._meta.fields:
-            if field.__class__ in SUPPORTED_FIELDS:
-                create_field(field.name, model, deepl_fields)
+                create_field(field, model, deepl_fields)
