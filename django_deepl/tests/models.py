@@ -1,7 +1,7 @@
 from django.db import models
 
 
-class TestModel1(models.Model):
+class Model1Test(models.Model):
     title = models.CharField("title", max_length=255)
     text = models.TextField(blank=True, null=True)
 
@@ -13,7 +13,7 @@ class TestModel1(models.Model):
     }
 
 
-class TestModel2(models.Model):
+class Model2Test(models.Model):
     title = models.CharField("title", max_length=255)
     text = models.TextField(blank=True, null=True)
 
